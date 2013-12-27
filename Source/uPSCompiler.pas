@@ -6774,7 +6774,11 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
               u := rr.aType;
             end;
           end
-          {$IFDEF PS_HAVEVARIANT}else if (u.BaseType = btVariant) then break else {$ENDIF}
+          {$IFDEF PS_HAVEVARIANT}
+          else if (u.BaseType = btVariant) then break else
+          {$ELSE}
+          ;
+          {$ENDIF}
 
           begin
             x.Free;
@@ -7285,6 +7289,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
         end;
         FType2 := GetTypeNo(BlockInfo, Temp);
         if ((typeno.BaseType = btClass){$IFNDEF PS_NOINTERFACES} or (TypeNo.basetype = btInterface){$ENDIF}) and
+          (ftype2<>nil) and
           ((ftype2.BaseType = btClass){$IFNDEF PS_NOINTERFACES} or (ftype2.BaseType = btInterface){$ENDIF}) and (TypeNo <> ftype2) then
         begin
 {$IFNDEF PS_NOINTERFACES}
@@ -7338,7 +7343,7 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
           FParser.Next;
           Exit;
         end;
-        if not IsCompatibleType(TypeNo, FType2, True) then
+        if (FType2=nil) or not IsCompatibleType(TypeNo, FType2, True) then
         begin
           temp.Free;
           MakeError('', ecTypeMismatch, '');
@@ -8087,7 +8092,9 @@ function TPSPascalCompiler.ProcessSub(BlockInfo: TPSBlockInfo): Boolean;
                 result := nil;
                 exit;
               end;
-              if (GetTypeNo(BlockInfo, NewVar) = nil) or ((GetTypeNo(BlockInfo, NewVar).BaseType <> btClass) and
+              if (GetTypeNo(BlockInfo, NewVar) = nil) or 
+                ((GetTypeNo(BlockInfo, NewVar).BaseType <> btClass) and
+                (GetTypeNo(BlockInfo, NewVar).BaseType <> btInterface) and
                 (GetTypeNo(BlockInfo, NewVar).BaseType <> btPChar) and
                 (GetTypeNo(BlockInfo, NewVar).BaseType <> btString)) then
               begin
@@ -9609,7 +9616,7 @@ begin
       exit;
     end;
     case lType.BaseType of
-      btU8, btS8, btU16, btS16, btU32, btS32, {$IFNDEF PS_NOINT64} btS64, {$ENDIF} btVariant: ;
+      btU8, btS8, btU16, btS16, btU32, btS32, {$IFNDEF PS_NOINT64} btS64, {$ENDIF} btVariant, btEnum: ;
     else
       begin
         MakeError('', ecTypeMismatch, '');
@@ -9657,7 +9664,7 @@ begin
       exit;
     end;
     case lType.BaseType of
-      btVariant, btU8, btS8, btU16, btS16, btU32, {$IFNDEF PS_NOINT64} btS64, {$ENDIF} btS32: ;
+      btVariant, btEnum, btU8, btS8, btU16, btS16, btU32, {$IFNDEF PS_NOINT64} btS64, {$ENDIF} btS32: ;
     else
       begin
         MakeError('', ecTypeMismatch, '');
@@ -12979,12 +12986,7 @@ begin
   AddFunction('function Pos(SubStr, S: AnyString): Longint;');
   AddFunction('procedure Delete(var s: AnyString; ifrom, icount: Longint);');
   AddFunction('procedure Insert(s: AnyString; var s2: AnyString; iPos: Longint);');
-  p := AddFunction('function GetArrayLength: integer;');
-  with P.Decl.AddParam do
-  begin
-    OrgName := 'arr';
-    Mode := pmInOut;
-  end;
+  AddFunction('function GetArrayLength: integer;').Decl.AddParam.OrgName := 'arr';
   p := AddFunction('procedure SetArrayLength;');
   with P.Decl.AddParam do
   begin
@@ -13043,6 +13045,30 @@ begin
     begin
       OrgName:='x';
       Mode:=pmInOut;
+    end;
+  end;
+  with AddFunction('procedure Include;').Decl do begin
+    with AddParam do
+    begin
+      OrgName:='s';
+      Mode:=pmInOut;
+    end;
+    with AddParam do
+    begin
+      OrgName:='m';
+      Mode:=pmIn;
+    end;
+  end;
+  with AddFunction('procedure Exclude;').Decl do begin
+    with AddParam do
+    begin
+      OrgName:='s';
+      Mode:=pmInOut;
+    end;
+    with AddParam do
+    begin
+      OrgName:='m';
+      Mode:=pmIn;
     end;
   end;
   AddFunction('Function Sin(e : Extended) : Extended;');
@@ -14542,7 +14568,7 @@ begin
       C := CurrClass.FClassItems[I];
       if (c is TPSDelphiClassItemConstructor) and (C.NameHash = H) and (C.Name = Name) then
       begin
-        Index := Cardinal(C);
+        Index := IPointer(C);
         Result := True;
         exit;
       end;
